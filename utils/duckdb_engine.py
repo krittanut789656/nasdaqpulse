@@ -227,3 +227,111 @@ def get_kpi_stats(ohlcv_df: pd.DataFrame) -> Dict[str, object]:
         f"RSI={result['rsi_current']}"
     )
     return result
+
+
+# ── Market Intelligence Analytics ─────────────────────────────────────────────
+
+def compute_market_indicators(ohlcv_dict: dict) -> pd.DataFrame:
+    """Compute EMA20/50/200, RSI-14, and multi-period returns for all tickers.
+
+    Args:
+        ohlcv_dict: Mapping ticker → OHLCV DataFrame (DatetimeIndex, Close col).
+
+    Returns:
+        DataFrame with one row per ticker:
+            ticker, ema20, ema50, ema200, rsi,
+            close, return_3m, return_6m, return_12m, avg_volume
+    """
+    rows = []
+    for ticker, df in ohlcv_dict.items():
+        if df.empty or "Close" not in df.columns:
+            continue
+        close = df["Close"].dropna()
+        vol   = df["Volume"].dropna() if "Volume" in df.columns else pd.Series(dtype=float)
+        if len(close) < 30:
+            continue
+        # EMAs
+        ema20  = float(close.ewm(span=20,  adjust=False).mean().iloc[-1])
+        ema50  = float(close.ewm(span=50,  adjust=False).mean().iloc[-1])
+        ema200 = float(close.ewm(span=200, adjust=False).mean().iloc[-1]) if len(close) >= 50 else float("nan")
+        # RSI
+        rsi_series = _compute_rsi(close, 14)
+        rsi = float(rsi_series.iloc[-1]) if pd.notna(rsi_series.iloc[-1]) else float("nan")
+        # Current close
+        current = float(close.iloc[-1])
+        # Returns
+        def _ret(n):
+            if len(close) <= n:
+                return float("nan")
+            return round((current / float(close.iloc[-n-1]) - 1) * 100, 2)
+        r3m  = _ret(63)
+        r6m  = _ret(126)
+        r12m = _ret(252)
+        # Avg volume
+        avg_vol = int(vol.iloc[-30:].mean()) if len(vol) >= 5 else 0
+        rows.append({
+            "ticker": ticker, "close": round(current, 2),
+            "ema20": round(ema20, 2), "ema50": round(ema50, 2), "ema200": round(ema200, 2),
+            "rsi": round(rsi, 2), "return_3m": r3m, "return_6m": r6m, "return_12m": r12m,
+            "avg_volume": avg_vol,
+        })
+    result = pd.DataFrame(rows)
+    log_info(f"compute_market_indicators: {len(result)} tickers processed.")
+    return result
+
+
+def compute_correlation_matrix(ohlcv_dict: dict) -> pd.DataFrame:
+    """Compute Pearson correlation matrix of daily returns via DuckDB.
+
+    Args:
+        ohlcv_dict: Mapping ticker → OHLCV DataFrame.
+
+    Returns:
+        Square DataFrame of Pearson correlations (tickers × tickers).
+    """
+    series = {}
+    for ticker, df in ohlcv_dict.items():
+        if df.empty or "Close" not in df.columns:
+            continue
+        ret = df["Close"].dropna().pct_change().dropna()
+        if len(ret) > 30:
+            series[ticker] = ret
+    if not series:
+        return pd.DataFrame()
+    returns_df = pd.DataFrame(series).dropna()
+    corr = returns_df.corr(method="pearson")
+    log_info(f"Correlation matrix computed: {corr.shape[0]}×{corr.shape[1]}")
+    return corr
+
+
+def compute_risk_return(ohlcv_dict: dict, rf_rate: float = 0.05) -> pd.DataFrame:
+    """Compute annualised return, volatility, and Sharpe ratio per ticker.
+
+    Args:
+        ohlcv_dict: Mapping ticker → OHLCV DataFrame.
+        rf_rate:    Annual risk-free rate (default 5%).
+
+    Returns:
+        DataFrame with columns: ticker, ann_return, ann_vol, sharpe, avg_volume.
+    """
+    import math
+    rows = []
+    for ticker, df in ohlcv_dict.items():
+        if df.empty or "Close" not in df.columns:
+            continue
+        close = df["Close"].dropna()
+        vol   = df["Volume"].dropna() if "Volume" in df.columns else pd.Series(dtype=float)
+        if len(close) < 30:
+            continue
+        daily_ret = close.pct_change().dropna()
+        ann_return = round(float(daily_ret.mean()) * 252 * 100, 2)
+        ann_vol    = round(float(daily_ret.std()) * math.sqrt(252) * 100, 2)
+        sharpe     = round((ann_return/100 - rf_rate) / (ann_vol/100), 3) if ann_vol else float("nan")
+        avg_vol    = int(vol.iloc[-30:].mean()) if len(vol) >= 5 else 0
+        rows.append({
+            "ticker": ticker, "ann_return": ann_return,
+            "ann_vol": ann_vol, "sharpe": sharpe, "avg_volume": avg_vol,
+        })
+    result = pd.DataFrame(rows)
+    log_info(f"compute_risk_return: {len(result)} tickers.")
+    return result
