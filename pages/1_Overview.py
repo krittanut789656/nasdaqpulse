@@ -87,7 +87,9 @@ with st.spinner("กำลังโหลดข้อมูลตลาด..."):
         st.stop()
 
 
-# FULL TICKER TABLE
+# ─────────────────────────────────────────────────────────
+# 1. NasdaqPulse Watchlist
+# ─────────────────────────────────────────────────────────
 st.subheader("\U0001f4cb NasdaqPulse Watchlist")
 
 if not display_df.empty:
@@ -115,303 +117,39 @@ else:
 st.divider()
 
 
-# FEATURE 5 -- MARKET BREADTH PANEL
-st.subheader("\U0001f4e1 Market Breadth Panel")
+# ─────────────────────────────────────────────────────────
+# 2. Top 5 Gainers & Losers
+# ─────────────────────────────────────────────────────────
+st.subheader("\U0001f4ca Top 5 Gainers & Losers")
 
-above_ema20 = above_ema50 = above_ema200 = 0
-rsi_ob = rsi_os = pos_return = neg_return = total = 0
-
-if not indicators_df.empty:
-    total        = len(indicators_df)
-    above_ema20  = int((indicators_df["close"] > indicators_df["ema20"]).sum())
-    above_ema50  = int((indicators_df["close"] > indicators_df["ema50"]).sum())
-    above_ema200 = int((indicators_df["close"] > indicators_df["ema200"]).sum())
-    rsi_ob       = int((indicators_df["rsi"] > 70).sum())
-    rsi_os       = int((indicators_df["rsi"] < 30).sum())
-    pos_return   = int((indicators_df["return_3m"] > 0).sum())
-    neg_return   = total - pos_return
-
-    def _card_html(label, val, total_n, good_high=True):
-        pct = val / total_n * 100 if total_n else 0
-        good = (good_high and val >= total_n / 2) or (not good_high and val <= total_n / 2)
-        color = "#00d4aa" if good else "#ff4b4b"
-        return (
-            '<div style="background:#161b22;border-radius:8px;padding:14px 10px;text-align:center">'
-            '<div style="font-size:11px;color:#8b949e;margin-bottom:4px">' + label + '</div>'
-            '<div style="font-size:28px;font-weight:700;color:' + color + '">' + str(val) +
-            '<span style="font-size:14px;color:#8b949e">/' + str(total_n) + '</span></div>'
-            '<div style="font-size:12px;color:#8b949e">' + f"{pct:.0f}%" + '</div></div>'
-        )
-
-    b1, b2, b3, b4, b5, b6, b7 = st.columns(7)
-    cols_data = [
-        (b1, "Above EMA20",  above_ema20,  True),
-        (b2, "Above EMA50",  above_ema50,  True),
-        (b3, "Above EMA200", above_ema200, True),
-        (b4, "RSI > 70",     rsi_ob,       False),
-        (b5, "RSI < 30",     rsi_os,       False),
-        (b6, "Return+ (3M)", pos_return,   True),
-        (b7, "Return- (3M)", neg_return,   False),
-    ]
-    for col_w, lbl, val_b, gh in cols_data:
-        with col_w:
-            st.markdown(_card_html(lbl, val_b, total, gh), unsafe_allow_html=True)
-else:
-    st.info("Market breadth data unavailable.")
-
-st.divider()
-
-
-# FEATURE 1 -- MARKET HEALTH SCORE
-st.subheader("\U0001f4ca Market Health Score")
-health_score = 50.0
-
-if not indicators_df.empty:
-    n_h = len(indicators_df)
-    pct_ema20   = float((indicators_df["close"] > indicators_df["ema20"]).sum()) / n_h * 100
-    pct_ema50   = float((indicators_df["close"] > indicators_df["ema50"]).sum()) / n_h * 100
-    pct_pos_ret = float((indicators_df["return_3m"] > 0).sum()) / n_h * 100
-    avg_rsi     = float(indicators_df["rsi"].mean())
-    rsi_score   = min(max((avg_rsi - 30) / 40 * 100, 0), 100)
-    health_score = round(0.25*pct_ema20 + 0.25*pct_ema50 + 0.25*pct_pos_ret + 0.25*rsi_score, 1)
-
-    if health_score >= 70:
-        status, bar_color, status_color = "Bullish", "#00d4aa", "#00d4aa"
-    elif health_score >= 30:
-        status, bar_color, status_color = "Neutral", "#ffd700", "#ffd700"
-    else:
-        status, bar_color, status_color = "Bearish", "#ff4b4b", "#ff4b4b"
-
-    col_gauge, col_detail = st.columns([1, 1])
-
-    with col_gauge:
-        fig_gauge = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=health_score,
-            number={"font": {"size": 48, "color": bar_color}},
-            title={"text": "<b>" + status + "</b>", "font": {"size": 18, "color": status_color}},
-            gauge={
-                "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": "#555"},
-                "bar": {"color": bar_color, "thickness": 0.25},
-                "bgcolor": "#1e2130", "borderwidth": 0,
-                "steps": [
-                    {"range": [0, 30],  "color": "#3d1515"},
-                    {"range": [30, 70], "color": "#3d3a15"},
-                    {"range": [70,100], "color": "#153d2e"},
-                ],
-                "threshold": {"line": {"color": bar_color, "width": 4}, "value": health_score},
-            },
-        ))
-        fig_gauge.update_layout(
-            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-            height=260, margin=dict(l=20, r=20, t=40, b=20),
-        )
-        st.plotly_chart(fig_gauge, use_container_width=True)
-
-    with col_detail:
-        st.markdown("<br>", unsafe_allow_html=True)
-        for cname, cval, weight in [
-            ("Above EMA20",     pct_ema20,   25),
-            ("Above EMA50",     pct_ema50,   25),
-            ("Positive 3M Ret", pct_pos_ret, 25),
-            ("RSI Strength",    rsi_score,   25),
-        ]:
-            contribution = cval * weight / 100
-            st.markdown(
-                "**" + cname + "** &nbsp; `" + f"{cval:.0f}%" + "` &nbsp; &rarr; &nbsp; "
-                "<span style='color:" + bar_color + "'>" + f"{contribution:.1f} pts" + "</span>",
-                unsafe_allow_html=True,
-            )
-        st.markdown("---")
-        above50_count = int((indicators_df["close"] > indicators_df["ema50"]).sum())
-        breadth_label = "strong" if pct_ema20 >= 60 else ("mixed" if pct_ema20 >= 40 else "weak")
-        st.info(
-            f"{above50_count} of {n_h} stocks are above EMA50. "
-            f"Average RSI is {avg_rsi:.1f}. "
-            f"Market breadth is {breadth_label}."
-        )
-else:
-    st.info("Health score unavailable.")
-
-st.divider()
-
-
-# FEATURE 2 -- RELATIVE STRENGTH LEADERBOARD
-st.subheader("\U0001f3c6 Relative Strength Ranking")
-rs_df = pd.DataFrame()
-
-if not indicators_df.empty:
-    rs_df = indicators_df[["ticker", "return_3m", "return_6m", "return_12m"]].copy()
-    rs_df = rs_df.dropna(subset=["return_3m"])
-    rs_df["return_6m"]  = rs_df["return_6m"].fillna(0)
-    rs_df["return_12m"] = rs_df["return_12m"].fillna(0)
-    rs_df["RS Score"] = (
-        0.40 * rs_df["return_3m"] +
-        0.30 * rs_df["return_6m"] +
-        0.30 * rs_df["return_12m"]
-    ).round(2)
-    rs_df = rs_df.sort_values("RS Score", ascending=False).reset_index(drop=True)
-    rs_df.index = rs_df.index + 1
-    rs_df.index.name = "Rank"
-
-    col_rs_table, col_rs_chart = st.columns([1, 1])
-
-    with col_rs_table:
-        def _color_rs(val: float) -> str:
-            if val > 10:
-                return "background-color:#1a4a38;color:#00d4aa;font-weight:600"
-            if val > 0:
-                return "background-color:#1a3a2a;color:#6fcfa0"
-            if val > -10:
-                return "background-color:#3a1a1a;color:#ff8080"
-            return "background-color:#4a1a1a;color:#ff4b4b;font-weight:600"
-
-        rs_display = rs_df[["ticker", "RS Score", "return_3m", "return_6m", "return_12m"]].copy()
-        styled_rs = (
-            rs_display.style
-            .format({"RS Score": "{:+.2f}", "return_3m": "{:+.2f}%",
-                     "return_6m": "{:+.2f}%", "return_12m": "{:+.2f}%"})
-            .map(_color_rs, subset=["RS Score"])
-        )
-        st.dataframe(styled_rs, use_container_width=True)
-
-    with col_rs_chart:
-        rs_plot = rs_df.sort_values("RS Score")
-        bar_colors_rs = ["#00d4aa" if v >= 0 else "#ff4b4b" for v in rs_plot["RS Score"]]
-        fig_rs = go.Figure(go.Bar(
-            x=rs_plot["RS Score"], y=rs_plot["ticker"], orientation="h",
-            marker_color=bar_colors_rs,
-            text=[f"{v:+.1f}" for v in rs_plot["RS Score"]],
-            textposition="outside",
-            hovertemplate="<b>%{y}</b><br>RS Score: %{x:.2f}<extra></extra>",
-        ))
-        fig_rs.update_layout(
-            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=20, r=60, t=20, b=20), height=320,
-            xaxis=dict(title="RS Score", zeroline=True, zerolinecolor="#444"),
-            yaxis=dict(title=""), showlegend=False,
-        )
-        st.plotly_chart(fig_rs, use_container_width=True)
-
-st.divider()
-
-
-# KPI METRIC CARDS
-total_tickers = len(NASDAQ_100_TICKERS)
-avg_change = 0.0
-top_gainer_label = "N/A"
-if not snapshot_df.empty:
-    avg_change = round(float(snapshot_df["change_pct"].mean()), 2)
-if not gainers_df.empty:
-    top_row = gainers_df.iloc[0]
-    sign = "+" if top_row["change_pct"] >= 0 else ""
-    top_gainer_label = top_row["ticker"] + "  " + sign + f"{top_row['change_pct']:.2f}%"
-
-col_m1, col_m2, col_m3 = st.columns(3)
-with col_m1:
-    st.metric(label="\U0001f4cc Total Tickers Tracked", value=total_tickers)
-with col_m2:
-    direction = "Bullish" if avg_change >= 0 else "Bearish"
-    st.metric(label="\U0001f4c8 Market Avg Change", value=f"{avg_change:+.2f}%", delta=direction)
-with col_m3:
-    st.metric(label="\U0001f3c6 Top Gainer", value=top_gainer_label)
-
-st.divider()
-
-
-# TOP MOVERS + SECTOR TREEMAP
-col_left, col_right = st.columns([6, 4])
-
-with col_left:
-    st.subheader("\U0001f4ca Top 5 Gainers & Losers")
-    if not gainers_df.empty and not losers_df.empty:
-        movers_df = pd.concat([gainers_df, losers_df], ignore_index=True)
-        movers_df = movers_df.drop_duplicates(subset="ticker").sort_values("change_pct")
-        colors_mv = ["#00d4aa" if v >= 0 else "#ff4b4b" for v in movers_df["change_pct"]]
-        fig_bar = go.Figure(go.Bar(
-            x=movers_df["change_pct"], y=movers_df["ticker"], orientation="h",
-            marker_color=colors_mv,
-            text=[f"{v:+.2f}%" for v in movers_df["change_pct"]],
-            textposition="outside",
-            hovertemplate="<b>%{y}</b><br>Change: %{x:.2f}%<extra></extra>",
-        ))
-        fig_bar.update_layout(
-            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=20, r=60, t=20, b=20),
-            xaxis=dict(title="Daily Change (%)", zeroline=True, zerolinecolor="#444"),
-            yaxis=dict(title=""), height=320, showlegend=False,
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-    else:
-        st.info("Mover data unavailable.")
-
-with col_right:
-    st.subheader("\U0001f5fa Sector Heatmap")
-    if not sector_df.empty:
-        fig_tree = px.treemap(
-            sector_df, path=["sector"], values="ticker_count", color="avg_change",
-            color_continuous_scale=[[0.0,"#ff4b4b"],[0.5,"#1e2130"],[1.0,"#00d4aa"]],
-            color_continuous_midpoint=0,
-            custom_data=["avg_change", "ticker_count"],
-        )
-        fig_tree.update_traces(
-            texttemplate="<b>%{label}</b><br>%{customdata[0]:+.2f}%",
-            hovertemplate="<b>%{label}</b><br>Avg: %{customdata[0]:+.2f}%<br>Tickers: %{customdata[1]}<extra></extra>",
-        )
-        fig_tree.update_layout(
-            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=0, r=0, t=20, b=0), height=320, coloraxis_showscale=False,
-        )
-        st.plotly_chart(fig_tree, use_container_width=True)
-    else:
-        st.info("Sector data unavailable.")
-
-st.divider()
-
-
-# FEATURE 3 -- CORRELATION MATRIX
-st.subheader("\U0001f517 Correlation Matrix")
-
-if not corr_df.empty:
-    tickers_c = corr_df.columns.tolist()
-    z_vals = corr_df.values.round(2)
-    fig_corr = go.Figure(go.Heatmap(
-        z=z_vals, x=tickers_c, y=tickers_c,
-        colorscale=[[0.0, "#ff4b4b"], [0.5, "#1e2130"], [1.0, "#00d4aa"]],
-        zmin=-1, zmax=1,
-        text=[[f"{v:.2f}" for v in row] for row in z_vals],
-        texttemplate="%{text}",
-        textfont={"size": 11},
-        hovertemplate="<b>%{x} vs %{y}</b><br>Correlation: %{z:.2f}<extra></extra>",
+if not gainers_df.empty and not losers_df.empty:
+    movers_df = pd.concat([gainers_df, losers_df], ignore_index=True)
+    movers_df = movers_df.drop_duplicates(subset="ticker").sort_values("change_pct")
+    colors_mv = ["#00d4aa" if v >= 0 else "#ff4b4b" for v in movers_df["change_pct"]]
+    fig_bar = go.Figure(go.Bar(
+        x=movers_df["change_pct"], y=movers_df["ticker"], orientation="h",
+        marker_color=colors_mv,
+        text=[f"{v:+.2f}%" for v in movers_df["change_pct"]],
+        textposition="outside",
+        hovertemplate="<b>%{y}</b><br>Change: %{x:.2f}%<extra></extra>",
     ))
-    fig_corr.update_layout(
+    fig_bar.update_layout(
         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=20, b=20), height=420,
+        margin=dict(l=20, r=80, t=20, b=20),
+        xaxis=dict(title="Daily Change (%)", zeroline=True, zerolinecolor="#444"),
+        yaxis=dict(title=""), height=340, showlegend=False,
     )
-    st.plotly_chart(fig_corr, use_container_width=True)
-
-    n_tc = len(tickers_c)
-    mask_data = [[p != q for q in range(n_tc)] for p in range(n_tc)]
-    mask_df_c = pd.DataFrame(mask_data, index=tickers_c, columns=tickers_c)
-    corr_masked = corr_df.where(mask_df_c)
-    max_pair = corr_masked.stack().idxmax()
-    min_pair = corr_masked.stack().idxmin()
-    max_cv = round(float(corr_masked.loc[max_pair]), 2)
-    min_cv = round(float(corr_masked.loc[min_pair]), 2)
-    st.info(
-        f"Strongest correlation: {max_pair[0]} & {max_pair[1]} ({max_cv:+.2f}) | "
-        f"Weakest: {min_pair[0]} & {min_pair[1]} ({min_cv:+.2f})"
-    )
+    st.plotly_chart(fig_bar, use_container_width=True)
 else:
-    st.info("Correlation data unavailable.")
+    st.info("Mover data unavailable.")
 
 st.divider()
 
 
-# FEATURE 4 -- RISK VS RETURN MAP
+# ─────────────────────────────────────────────────────────
+# 3. Risk vs Return Analysis
+# ─────────────────────────────────────────────────────────
 st.subheader("⚖️ Risk vs Return Analysis")
 
 if not risk_df.empty:
@@ -491,90 +229,154 @@ else:
 st.divider()
 
 
-# DATA QUALITY REPORT
-with st.expander("\U0001f4cb Data Quality Report", expanded=False):
-    if quality_reports:
-        avg_score = sum(r["quality_score"] for r in quality_reports) / len(quality_reports)
-        score_label = (
-            "Excellent" if avg_score >= 90
-            else "Acceptable" if avg_score >= 70
-            else "Needs Attention"
+# ─────────────────────────────────────────────────────────
+# 4. Relative Strength Ranking
+# ─────────────────────────────────────────────────────────
+st.subheader("\U0001f3c6 Relative Strength Ranking")
+rs_df = pd.DataFrame()
+
+if not indicators_df.empty:
+    rs_df = indicators_df[["ticker", "return_3m", "return_6m", "return_12m"]].copy()
+    rs_df = rs_df.dropna(subset=["return_3m"])
+    rs_df["return_6m"]  = rs_df["return_6m"].fillna(0)
+    rs_df["return_12m"] = rs_df["return_12m"].fillna(0)
+    rs_df["RS Score"] = (
+        0.40 * rs_df["return_3m"] +
+        0.30 * rs_df["return_6m"] +
+        0.30 * rs_df["return_12m"]
+    ).round(2)
+    rs_df = rs_df.sort_values("RS Score", ascending=False).reset_index(drop=True)
+    rs_df.index = rs_df.index + 1
+    rs_df.index.name = "Rank"
+
+    col_rs_table, col_rs_chart = st.columns([1, 1])
+
+    with col_rs_table:
+        def _color_rs(val: float) -> str:
+            if val > 10:
+                return "background-color:#1a4a38;color:#00d4aa;font-weight:600"
+            if val > 0:
+                return "background-color:#1a3a2a;color:#6fcfa0"
+            if val > -10:
+                return "background-color:#3a1a1a;color:#ff8080"
+            return "background-color:#4a1a1a;color:#ff4b4b;font-weight:600"
+
+        rs_display = rs_df[["ticker", "RS Score", "return_3m", "return_6m", "return_12m"]].copy()
+        styled_rs = (
+            rs_display.style
+            .format({"RS Score": "{:+.2f}", "return_3m": "{:+.2f}%",
+                     "return_6m": "{:+.2f}%", "return_12m": "{:+.2f}%"})
+            .map(_color_rs, subset=["RS Score"])
         )
-        q_col1, q_col2 = st.columns([1, 3])
-        with q_col1:
-            st.metric(label="Avg Quality Score", value=f"{avg_score:.1f} / 100", delta=score_label)
-        with q_col2:
-            st.caption(
-                f"Reports generated for {len(quality_reports)} tickers. "
-                "Each score starts at 100 and is penalised for schema issues, "
-                "missing values, duplicates, and volume outliers."
-            )
-        st.divider()
-        tabs = st.tabs([r["ticker"] for r in quality_reports])
-        for tab, report in zip(tabs, quality_reports):
-            with tab:
-                score = report["quality_score"]
-                icon = "OK" if score >= 90 else ("Warn" if score >= 70 else "Bad")
-                st.metric(label="Quality Score", value=f"{icon} {score:.1f} / 100")
-                st.json(report)
-    else:
-        st.info("No quality reports available.")
+        st.dataframe(styled_rs, use_container_width=True)
+
+    with col_rs_chart:
+        rs_plot = rs_df.sort_values("RS Score")
+        bar_colors_rs = ["#00d4aa" if v >= 0 else "#ff4b4b" for v in rs_plot["RS Score"]]
+        fig_rs = go.Figure(go.Bar(
+            x=rs_plot["RS Score"], y=rs_plot["ticker"], orientation="h",
+            marker_color=bar_colors_rs,
+            text=[f"{v:+.1f}" for v in rs_plot["RS Score"]],
+            textposition="outside",
+            hovertemplate="<b>%{y}</b><br>RS Score: %{x:.2f}<extra></extra>",
+        ))
+        fig_rs.update_layout(
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=20, r=60, t=20, b=20), height=320,
+            xaxis=dict(title="RS Score", zeroline=True, zerolinecolor="#444"),
+            yaxis=dict(title=""), showlegend=False,
+        )
+        st.plotly_chart(fig_rs, use_container_width=True)
 
 st.divider()
 
 
-# FEATURE 6 -- MARKET INTELLIGENCE SUMMARY
-st.subheader("\U0001f9e0 Market Intelligence Summary")
+# ─────────────────────────────────────────────────────────
+# 5. Market Breadth Panel
+# ─────────────────────────────────────────────────────────
+st.subheader("\U0001f4e1 Market Breadth Panel")
 
-if not indicators_df.empty and not risk_df.empty and not rs_df.empty:
-    n_sum     = len(indicators_df)
-    ema50_cnt = int((indicators_df["close"] > indicators_df["ema50"]).sum())
-    rsi_avg   = float(indicators_df["rsi"].mean())
-    ema20_cnt = int((indicators_df["close"] > indicators_df["ema20"]).sum())
-    ema200_cnt= int((indicators_df["close"] > indicators_df["ema200"]).sum())
-    top_rs    = str(rs_df.iloc[0]["ticker"]) if not rs_df.empty else "N/A"
-    bot_rs    = str(rs_df.iloc[-1]["ticker"]) if not rs_df.empty else "N/A"
-    best_sh   = str(risk_df.loc[risk_df["sharpe"].idxmax()]["ticker"]) if not risk_df.empty else "N/A"
-    best_sh_v = float(risk_df["sharpe"].max()) if not risk_df.empty else 0.0
+above_ema20 = above_ema50 = above_ema200 = 0
+rsi_ob = rsi_os = pos_return = neg_return = total = 0
 
-    corr_line = ""
-    if not corr_df.empty:
-        n_tc2 = len(corr_df.columns)
-        tc2   = corr_df.columns.tolist()
-        mask2 = pd.DataFrame(
-            [[p2 != q2 for q2 in range(n_tc2)] for p2 in range(n_tc2)],
-            index=tc2, columns=tc2,
+if not indicators_df.empty:
+    total        = len(indicators_df)
+    above_ema20  = int((indicators_df["close"] > indicators_df["ema20"]).sum())
+    above_ema50  = int((indicators_df["close"] > indicators_df["ema50"]).sum())
+    above_ema200 = int((indicators_df["close"] > indicators_df["ema200"]).sum())
+    rsi_ob       = int((indicators_df["rsi"] > 70).sum())
+    rsi_os       = int((indicators_df["rsi"] < 30).sum())
+    pos_return   = int((indicators_df["return_3m"] > 0).sum())
+    neg_return   = total - pos_return
+
+    def _card_html(label, val, total_n, good_high=True):
+        pct = val / total_n * 100 if total_n else 0
+        good = (good_high and val >= total_n / 2) or (not good_high and val <= total_n / 2)
+        color = "#00d4aa" if good else "#ff4b4b"
+        return (
+            '<div style="background:#161b22;border-radius:8px;padding:14px 10px;text-align:center">'
+            '<div style="font-size:11px;color:#8b949e;margin-bottom:4px">' + label + '</div>'
+            '<div style="font-size:28px;font-weight:700;color:' + color + '">' + str(val) +
+            '<span style="font-size:14px;color:#8b949e">/' + str(total_n) + '</span></div>'
+            '<div style="font-size:12px;color:#8b949e">' + f"{pct:.0f}%" + '</div></div>'
         )
-        cv2  = corr_df.where(mask2)
-        mp2  = cv2.stack().idxmax()
-        mv2  = round(float(cv2.loc[mp2]), 2)
-        corr_line = f"{mp2[0]} and {mp2[1]} show the highest co-movement ({mv2:+.2f})."
 
-    cond = "Bullish" if health_score >= 70 else ("Neutral" if health_score >= 30 else "Bearish")
-
-    bullet_1 = (
-        f"**Market condition:** Health Score {health_score:.0f}/100 - {cond}. "
-        f"{ema50_cnt}/{n_sum} stocks are trading above EMA50."
-    )
-    bullet_2 = (
-        f"**Leadership:** {top_rs} leads the Relative Strength ranking. "
-        f"{bot_rs} shows the weakest momentum over the past 12 months."
-    )
-    bullet_3 = (
-        f"**Risk environment:** {best_sh} offers the best risk-adjusted return "
-        f"(Sharpe: {best_sh_v:.2f}). Average RSI is {rsi_avg:.1f}."
-    )
-    bullet_4 = ("**Correlation:** " + corr_line) if corr_line else "**Correlation:** Based on daily returns."
-    bullet_5 = (
-        f"**Market breadth:** {ema20_cnt}/{n_sum} above EMA20, "
-        f"{ema50_cnt}/{n_sum} above EMA50, "
-        f"{ema200_cnt}/{n_sum} above EMA200. "
-        "For educational purposes only - not investment advice."
-    )
-
-    for line in [bullet_1, bullet_2, bullet_3, bullet_4, bullet_5]:
-        st.markdown("- " + line)
+    b1, b2, b3, b4, b5, b6, b7 = st.columns(7)
+    for col_w, lbl, val_b, gh in [
+        (b1, "Above EMA20",  above_ema20,  True),
+        (b2, "Above EMA50",  above_ema50,  True),
+        (b3, "Above EMA200", above_ema200, True),
+        (b4, "RSI > 70",     rsi_ob,       False),
+        (b5, "RSI < 30",     rsi_os,       False),
+        (b6, "Return+ (3M)", pos_return,   True),
+        (b7, "Return- (3M)", neg_return,   False),
+    ]:
+        with col_w:
+            st.markdown(_card_html(lbl, val_b, total, gh), unsafe_allow_html=True)
 else:
-    st.info("Insufficient data for market summary.")
+    st.info("Market breadth data unavailable.")
+
+st.divider()
+
+
+# ─────────────────────────────────────────────────────────
+# 6. Correlation Matrix
+# ─────────────────────────────────────────────────────────
+st.subheader("\U0001f517 Correlation Matrix")
+
+if not corr_df.empty:
+    tickers_c = corr_df.columns.tolist()
+    z_vals = corr_df.values.round(2)
+    fig_corr = go.Figure(go.Heatmap(
+        z=z_vals, x=tickers_c, y=tickers_c,
+        colorscale=[[0.0, "#ff4b4b"], [0.5, "#1e2130"], [1.0, "#00d4aa"]],
+        zmin=-1, zmax=1,
+        text=[[f"{v:.2f}" for v in row] for row in z_vals],
+        texttemplate="%{text}",
+        textfont={"size": 11},
+        hovertemplate="<b>%{x} vs %{y}</b><br>Correlation: %{z:.2f}<extra></extra>",
+    ))
+    fig_corr.update_layout(
+        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=20, r=20, t=20, b=20), height=420,
+    )
+    st.plotly_chart(fig_corr, use_container_width=True)
+
+    n_tc = len(tickers_c)
+    mask_data = [[p != q for q in range(n_tc)] for p in range(n_tc)]
+    mask_df_c = pd.DataFrame(mask_data, index=tickers_c, columns=tickers_c)
+    corr_masked = corr_df.where(mask_df_c)
+    max_pair = corr_masked.stack().idxmax()
+    min_pair = corr_masked.stack().idxmin()
+    max_cv = round(float(corr_masked.loc[max_pair]), 2)
+    min_cv = round(float(corr_masked.loc[min_pair]), 2)
+    st.info(
+        f"Strongest correlation: {max_pair[0]} & {max_pair[1]} ({max_cv:+.2f}) | "
+        f"Weakest: {min_pair[0]} & {min_pair[1]} ({min_cv:+.2f})"
+    )
+else:
+    st.info("Correlation data unavailable.")
 
 st.caption("⚠️ NasdaqPulse is for educational purposes only. Not investment advice.")
