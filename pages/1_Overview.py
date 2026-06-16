@@ -87,6 +87,34 @@ with st.spinner("กำลังโหลดข้อมูลตลาด..."):
         st.stop()
 
 
+# FULL TICKER TABLE
+st.subheader("\U0001f4cb NasdaqPulse Watchlist")
+
+if not display_df.empty:
+    def _colour_pct(val: float) -> str:
+        colour = "#00d4aa" if val >= 0 else "#ff4b4b"
+        return "color:" + colour + ";font-weight:600"
+
+    styled_tbl = (
+        display_df.style
+        .map(_colour_pct, subset=["Change %"])
+        .format({"Price": "${:.2f}", "Change %": "{:+.2f}%", "Volume": "{:,.0f}"})
+    )
+    st.dataframe(styled_tbl, use_container_width=True, hide_index=True)
+    st.caption("Click a ticker below to open its detail page:")
+    btn_cols = st.columns(len(display_df))
+    for i_row, row in display_df.reset_index(drop=True).iterrows():
+        ticker_btn = row["Ticker"]
+        with btn_cols[i_row]:
+            if st.button("\U0001f50d " + ticker_btn, key="analyze_" + ticker_btn):
+                st.session_state["selected_ticker"] = ticker_btn
+                st.switch_page("pages/2_Stock_Detail.py")
+else:
+    st.warning("No ticker data available.")
+
+st.divider()
+
+
 # FEATURE 5 -- MARKET BREADTH PANEL
 st.subheader("\U0001f4e1 Market Breadth Panel")
 
@@ -339,34 +367,6 @@ with col_right:
         st.plotly_chart(fig_tree, use_container_width=True)
     else:
         st.info("Sector data unavailable.")
-
-st.divider()
-
-
-# FULL TICKER TABLE
-st.subheader("\U0001f4cb Nasdaq 100 Watchlist")
-
-if not display_df.empty:
-    def _colour_pct(val: float) -> str:
-        colour = "#00d4aa" if val >= 0 else "#ff4b4b"
-        return "color:" + colour + ";font-weight:600"
-
-    styled_tbl = (
-        display_df.style
-        .map(_colour_pct, subset=["Change %"])
-        .format({"Price": "${:.2f}", "Change %": "{:+.2f}%", "Volume": "{:,.0f}"})
-    )
-    st.dataframe(styled_tbl, use_container_width=True, hide_index=True)
-    st.caption("Click a ticker below to open its detail page:")
-    btn_cols = st.columns(len(display_df))
-    for i_row, row in display_df.reset_index(drop=True).iterrows():
-        ticker_btn = row["Ticker"]
-        with btn_cols[i_row]:
-            if st.button("\U0001f50d " + ticker_btn, key="analyze_" + ticker_btn):
-                st.session_state["selected_ticker"] = ticker_btn
-                st.switch_page("pages/2_Stock_Detail.py")
-else:
-    st.warning("No ticker data available.")
 
 st.divider()
 
