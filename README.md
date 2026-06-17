@@ -1,6 +1,6 @@
 # 📈 NasdaqPulse
 
-**Nasdaq 100 Stock Market Analysis Dashboard with AI Analyst**
+**Nasdaq 100 Stock Market Analysis Dashboard with AI Analyst**  
 Built with Streamlit, DuckDB, MongoDB, Snowflake, yfinance, Groq
 
 DADS5001 — Final Project · Krittanut · 2026
@@ -17,12 +17,22 @@ in-memory SQL via DuckDB, and a Thai-language AI analyst powered by Groq (llama3
 
 ## Pages
 
-| Page | Mode | Description |
-|------|------|-------------|
-| 📊 Overview | — | Nasdaq summary table, top 5 gainers/losers bar chart, sector treemap heatmap, data quality report |
-| 🕯️ Stock Detail | Non-AI | Candlestick + Volume + RSI(14) Plotly dashboard, 4 KPI cards |
-| 🕯️ Stock Detail | AI | Same chart + Groq Thai narrative analysis |
-| 🤖 AI Analyst | RAG | MongoDB text search → live snapshot enrichment → Groq Thai answer, chat history |
+| Page | Description |
+|------|-------------|
+| 📊 Overview | Market intelligence dashboard — 6 sections (see below) |
+| 🕯️ Stock Detail | Candlestick + Volume + RSI(14) Plotly chart, 4 KPI cards, optional Groq AI narrative |
+| 🤖 AI Analyst | RAG pipeline — MongoDB text search → live snapshot → Groq Thai answer, chat history |
+
+### Overview Page — Section Layout
+
+| # | Section | Description |
+|---|---------|-------------|
+| 1 | NasdaqPulse Watchlist | Live price table with Change % coloring + quick-navigate buttons |
+| 2 | Top 5 Gainers & Losers | Horizontal bar chart of top/bottom daily movers |
+| 3 | Risk vs Return Analysis | Bubble scatter (size = avg volume), quadrant shading, Sharpe metrics |
+| 4 | Relative Strength Ranking | RS Score = 40%×3M + 30%×6M + 30%×12M, table + bar chart |
+| 5 | Market Breadth Panel | 7 KPI cards: above EMA20/50/200, RSI overbought/oversold, return+/- |
+| 6 | Correlation Matrix | Pearson heatmap of daily returns with strongest/weakest pair insight |
 
 ---
 
@@ -31,11 +41,11 @@ in-memory SQL via DuckDB, and a Thai-language AI analyst powered by Groq (llama3
 | Layer | Technology |
 |-------|------------|
 | Frontend | Streamlit (multi-page, session_state, cache) |
-| Data Fetch | yfinance (auto_adjust=True, ttl=3600) |
+| Data Fetch | yfinance (auto_adjust=True, ttl=3600, 2y history) |
 | Processing | Pandas, DuckDB (in-memory SQL) |
 | Cloud DB 1 | MongoDB Atlas — ticker metadata + RAG text search |
 | Cloud DB 2 | Snowflake — OHLCV history table |
-| Visualization | Plotly (make_subplots: Candlestick + Volume + RSI) |
+| Visualization | Plotly (Candlestick, Bar, Scatter, Heatmap, Treemap, Gauge) |
 | AI / LLM | Groq API — llama3-8b-8192 with fallback list (RAG, Thai output) |
 | Logging | Python standard logging → logs/app.log |
 
@@ -57,7 +67,10 @@ yfinance → Data Quality Check (data_quality.py)
 DuckDB (in-memory) — SQL over Pandas DataFrames
   ├── get_top_movers()
   ├── get_sector_summary()
-  └── get_kpi_stats() + RSI-14 (pure Pandas, no TA-Lib)
+  ├── get_kpi_stats() + RSI-14 (pure Pandas, no TA-Lib)
+  ├── compute_market_indicators()   — EMA20/50/200, RSI, 3M/6M/12M returns
+  ├── compute_correlation_matrix()  — Pearson daily-return correlation
+  └── compute_risk_return()         — Annualised return, volatility, Sharpe
 
 RAG Pipeline (AI Analyst page):
   MongoDB $text search → live yfinance snapshot → Groq → Thai response
@@ -75,6 +88,7 @@ RAG Pipeline (AI Analyst page):
 | `load_ohlcv_from_snowflake()` | `st.cache_data` | 1 hour |
 | `get_latest_snapshot()` | `st.cache_data` | 15 min |
 | `load_ticker_metadata()` | `st.cache_data` | 5 min |
+| `_load_all_ohlcv()` (Overview) | `st.cache_data` | 1 hour |
 
 ---
 
@@ -159,18 +173,18 @@ NasdaqPulse_Project/
 │   ├── config.toml           # Dark theme (#0e1117 bg, #00d4aa accent)
 │   └── secrets.toml          # Credentials (NOT committed to git)
 ├── config/
-│   ├── settings.py           # Credential loading (st.secrets → .env fallback)
-│   └── connections.py        # Reserved for future connection helpers
+│   └── settings.py           # Credential loading (st.secrets → .env fallback)
 ├── utils/
 │   ├── logger.py             # File + console logging (logs/app.log)
 │   ├── data_quality.py       # OHLCV validation + quality score (0-100)
 │   ├── mongodb_client.py     # MongoDB CRUD + $text search + cache
 │   ├── snowflake_client.py   # Snowflake DDL + OHLCV read/write + cache
 │   ├── yfinance_loader.py    # yfinance fetch + quality check + cache
-│   └── duckdb_engine.py      # In-memory SQL: movers, sector, KPIs, RSI
+│   └── duckdb_engine.py      # In-memory SQL: movers, sector, KPIs, RSI,
+│                             #   market indicators, correlation, risk/return
 ├── pages/
-│   ├── 1_Overview.py         # Nasdaq table, gainers/losers chart, sector treemap
-│   ├── 2_Stock_Detail.py     # Candlestick+Volume+RSI + Groq AI mode
+│   ├── 1_Overview.py         # 6-section market intelligence dashboard
+│   ├── 2_Stock_Detail.py     # Candlestick+Volume+RSI + optional Groq AI mode
 │   └── 3_AI_Analyst.py       # RAG pipeline + chat history
 ├── scripts/
 │   └── init_data.py          # One-time DB init + 3y OHLCV seed
@@ -199,4 +213,4 @@ NasdaqPulse_Project/
 ## AI Disclaimer
 
 > ⚠️ NasdaqPulse AI Analyst is for **educational purposes only**.
-> It does not provide investment advice. Always consult a licensed financial
+> It does not provide investment advice. Always consult a licensed financial advisor before making investment decisions.
