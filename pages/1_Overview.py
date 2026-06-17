@@ -35,7 +35,7 @@ def _build_local_metadata() -> pd.DataFrame:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _load_all_ohlcv() -> Dict[str, pd.DataFrame]:
-    return fetch_multiple_tickers(NASDAQ_100_TICKERS, period="1y")
+    return fetch_multiple_tickers(NASDAQ_100_TICKERS, period="2y")
 
 
 # DATA LOADING
